@@ -76,6 +76,58 @@ def test_forbidden_algorithm_raises(bad_alg: str) -> None:
         get_settings()
 
 
+def test_user_model_defaults() -> None:
+    settings = get_settings()
+    assert settings.USER_MODEL_ENABLED is False
+    assert settings.USER_MODEL_LOOKUP_CLAIM == "sub"
+    assert settings.USER_MODEL_LOOKUP_FIELD is None
+    assert settings.USER_MODEL_AUTO_CREATE is True
+    assert settings.USER_MODEL_CACHE_TTL == 300
+    assert settings.USER_MODEL_ROLE_FIELD_MAP == {}
+
+
+def test_user_model_enabled_without_lookup_field_raises() -> None:
+    with (
+        override_settings(
+            KEYCLOAK_JWT={
+                "ISSUER": "https://kc.example.test/realms/test",
+                "AUDIENCE": "x",
+                "USER_MODEL_ENABLED": True,
+            }
+        ),
+        pytest.raises(ImproperlyConfigured, match="USER_MODEL_LOOKUP_FIELD"),
+    ):
+        get_settings()
+
+
+def test_user_model_lookup_field_colliding_with_field_map_raises() -> None:
+    with (
+        override_settings(
+            KEYCLOAK_JWT={
+                "ISSUER": "https://kc.example.test/realms/test",
+                "AUDIENCE": "x",
+                "USER_MODEL_ENABLED": True,
+                "USER_MODEL_LOOKUP_FIELD": "username",
+            }
+        ),
+        pytest.raises(ImproperlyConfigured, match="USER_MODEL_FIELD_MAP target"),
+    ):
+        # Default USER_MODEL_FIELD_MAP maps preferred_username -> username.
+        get_settings()
+
+
+def test_user_model_enabled_with_lookup_field_is_valid() -> None:
+    with override_settings(
+        KEYCLOAK_JWT={
+            "ISSUER": "https://kc.example.test/realms/test",
+            "AUDIENCE": "x",
+            "USER_MODEL_ENABLED": True,
+            "USER_MODEL_LOOKUP_FIELD": "keycloak_sub",
+        }
+    ):
+        assert get_settings().USER_MODEL_LOOKUP_FIELD == "keycloak_sub"
+
+
 def test_override_settings_invalidates_cache() -> None:
     with override_settings(KEYCLOAK_JWT={"ISSUER": "https://a.example/realms/a", "AUDIENCE": "a"}):
         assert get_settings().ISSUER == "https://a.example/realms/a"

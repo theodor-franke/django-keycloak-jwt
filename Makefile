@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test e2e-up e2e e2e-down
+.PHONY: lint typecheck test test-user-model e2e-up e2e e2e-down
 
 lint:
 	uv run ruff check .
@@ -9,6 +9,13 @@ typecheck:
 
 test:
 	uv run pytest --cov --cov-report=term-missing
+
+# Separate from `test`: KeycloakJWTConfig.ready() only connects the
+# USER_MODEL_ENABLED cache-invalidation signals if the setting is already
+# True at Django startup, so exercising that requires its own settings
+# module (tests_user_model/settings.py) rather than override_settings.
+test-user-model:
+	DJANGO_SETTINGS_MODULE=tests_user_model.settings uv run pytest tests_user_model/
 
 e2e-up:
 	docker compose up -d

@@ -40,6 +40,10 @@ jobs:
       - run: uv pip install -e . --group dev
       - run: uv pip install "Django==${{ matrix.django-version }}.*"
       - run: uv run --no-sync pytest -m "not e2e" --cov --cov-fail-under=90
+      - name: Stateful (USER_MODEL_ENABLED) suite
+        env:
+          DJANGO_SETTINGS_MODULE: tests_user_model.settings
+        run: uv run --no-sync pytest tests_user_model/
 
   build:
     runs-on: ubuntu-latest

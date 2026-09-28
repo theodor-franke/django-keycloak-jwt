@@ -80,6 +80,58 @@ def test_unknown_key_is_warning() -> None:
     assert any(m.id == "django_keycloak_jwt.W002" and isinstance(m, Warning) for m in messages)
 
 
+def test_user_model_enabled_without_lookup_field_is_error() -> None:
+    with override_settings(
+        KEYCLOAK_JWT={
+            "ISSUER": "https://kc.example.test/realms/test",
+            "AUDIENCE": "x",
+            "USER_MODEL_ENABLED": True,
+        }
+    ):
+        messages = check_keycloak_jwt_settings(app_configs=None)
+    assert any(m.id == "django_keycloak_jwt.E004" and isinstance(m, Error) for m in messages)
+
+
+def test_user_model_enabled_with_locmem_cache_is_warning() -> None:
+    with override_settings(
+        KEYCLOAK_JWT={
+            "ISSUER": "https://kc.example.test/realms/test",
+            "AUDIENCE": "x",
+            "USER_MODEL_ENABLED": True,
+            "USER_MODEL_LOOKUP_FIELD": "username",
+        }
+    ):
+        messages = check_keycloak_jwt_settings(app_configs=None)
+    assert any(m.id == "django_keycloak_jwt.W003" and isinstance(m, Warning) for m in messages)
+
+
+def test_user_model_lookup_field_colliding_with_field_map_is_error() -> None:
+    with override_settings(
+        KEYCLOAK_JWT={
+            "ISSUER": "https://kc.example.test/realms/test",
+            "AUDIENCE": "x",
+            "USER_MODEL_ENABLED": True,
+            "USER_MODEL_LOOKUP_FIELD": "username",
+        }
+    ):
+        # Default USER_MODEL_FIELD_MAP maps preferred_username -> username.
+        messages = check_keycloak_jwt_settings(app_configs=None)
+    assert any(m.id == "django_keycloak_jwt.E005" and isinstance(m, Error) for m in messages)
+
+
+def test_user_model_disabled_skips_lookup_field_and_cache_checks() -> None:
+    with override_settings(
+        KEYCLOAK_JWT={
+            "ISSUER": "https://kc.example.test/realms/test",
+            "AUDIENCE": "x",
+        }
+    ):
+        messages = check_keycloak_jwt_settings(app_configs=None)
+    assert not any(
+        m.id in ("django_keycloak_jwt.E004", "django_keycloak_jwt.W003") for m in messages
+    )
+
+
 def test_valid_settings_produce_no_messages() -> None:
     with override_settings(
         DEBUG=False,

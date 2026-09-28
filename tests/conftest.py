@@ -12,12 +12,23 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from django.core.cache import cache
 from jwt.algorithms import RSAAlgorithm
 
 from django_keycloak_jwt import jwks as jwks_module
 
 ISSUER = "https://kc.example.test/realms/test"
 AUDIENCE = "test-client"
+
+
+@pytest.fixture(autouse=True)
+def _clear_django_cache() -> Iterator[None]:
+    """Django's cache (used by USER_MODEL_ENABLED) is process-global and
+    outlives per-test DB rollback, so tests sharing a `sub` claim would
+    otherwise see each other's cached resolved users."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @dataclass

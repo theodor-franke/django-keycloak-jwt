@@ -70,7 +70,7 @@ ignore = ["PLR0913"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR2004", "S101"]
 "e2e/**" = ["PLR2004", "S101"]
-"**/migrations/*.py" = ["RUF012"]
+"**/migrations/*.py" = ["RUF012", "E501"]
 "**/manage.py" = ["PLC0415"]
 
 [tool.mypy]
@@ -92,6 +92,8 @@ python_files = ["test_*.py"]
 addopts = "-m 'not e2e'"
 markers = ["e2e: end-to-end tests requiring a live Keycloak + Postgres"]
 pythonpath = [".", "example_project"]
+# Explicit path args (make test-user-model, make e2e) override this.
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["src/django_keycloak_jwt"]

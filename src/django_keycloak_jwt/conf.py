@@ -31,6 +31,18 @@ DEFAULTS: dict[str, Any] = {
     "HTTP_TIMEOUT": 5,
     "USER_CLASS": "django_keycloak_jwt.principal.KeycloakUser",
     "AUTH_HEADER_REALM": "api",
+    "USER_MODEL_ENABLED": False,
+    "USER_MODEL_LOOKUP_CLAIM": "sub",
+    "USER_MODEL_LOOKUP_FIELD": None,
+    "USER_MODEL_FIELD_MAP": {
+        "email": "email",
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "preferred_username": "username",
+    },
+    "USER_MODEL_AUTO_CREATE": True,
+    "USER_MODEL_CACHE_TTL": 300,
+    "USER_MODEL_ROLE_FIELD_MAP": {},
 }
 
 REQUIRED_KEYS = ("ISSUER", "AUDIENCE")
@@ -55,6 +67,13 @@ class KeycloakJWTSettings:
     HTTP_TIMEOUT: int
     USER_CLASS: str
     AUTH_HEADER_REALM: str
+    USER_MODEL_ENABLED: bool
+    USER_MODEL_LOOKUP_CLAIM: str
+    USER_MODEL_LOOKUP_FIELD: str | None
+    USER_MODEL_FIELD_MAP: dict[str, str]
+    USER_MODEL_AUTO_CREATE: bool
+    USER_MODEL_CACHE_TTL: int
+    USER_MODEL_ROLE_FIELD_MAP: dict[str, str]
 
     @property
     def audiences(self) -> list[str]:
@@ -99,6 +118,19 @@ def _load_settings() -> KeycloakJWTSettings:
 
     jwks_url = merged["JWKS_URL"] or f"{merged['ISSUER']}/protocol/openid-connect/certs"
 
+    if merged["USER_MODEL_ENABLED"]:
+        if not merged["USER_MODEL_LOOKUP_FIELD"]:
+            raise ImproperlyConfigured(
+                "KEYCLOAK_JWT['USER_MODEL_LOOKUP_FIELD'] is required when "
+                "KEYCLOAK_JWT['USER_MODEL_ENABLED'] is True."
+            )
+        if merged["USER_MODEL_LOOKUP_FIELD"] in merged["USER_MODEL_FIELD_MAP"].values():
+            raise ImproperlyConfigured(
+                "KEYCLOAK_JWT['USER_MODEL_LOOKUP_FIELD'] must not also appear as a "
+                "USER_MODEL_FIELD_MAP target -- syncing a claim onto the lookup "
+                "field would corrupt future lookups for that user."
+            )
+
     return KeycloakJWTSettings(
         ISSUER=merged["ISSUER"],
         AUDIENCE=merged["AUDIENCE"],
@@ -113,6 +145,13 @@ def _load_settings() -> KeycloakJWTSettings:
         HTTP_TIMEOUT=merged["HTTP_TIMEOUT"],
         USER_CLASS=merged["USER_CLASS"],
         AUTH_HEADER_REALM=merged["AUTH_HEADER_REALM"],
+        USER_MODEL_ENABLED=merged["USER_MODEL_ENABLED"],
+        USER_MODEL_LOOKUP_CLAIM=merged["USER_MODEL_LOOKUP_CLAIM"],
+        USER_MODEL_LOOKUP_FIELD=merged["USER_MODEL_LOOKUP_FIELD"],
+        USER_MODEL_FIELD_MAP=dict(merged["USER_MODEL_FIELD_MAP"]),
+        USER_MODEL_AUTO_CREATE=merged["USER_MODEL_AUTO_CREATE"],
+        USER_MODEL_CACHE_TTL=merged["USER_MODEL_CACHE_TTL"],
+        USER_MODEL_ROLE_FIELD_MAP=dict(merged["USER_MODEL_ROLE_FIELD_MAP"]),
     )
 
 

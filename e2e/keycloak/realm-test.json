@@ -11,7 +11,9 @@
     "client": {
       "api": [
         { "name": "reader", "description": "Can read notes" },
-        { "name": "editor", "description": "Can create notes" }
+        { "name": "editor", "description": "Can create notes" },
+        { "name": "django-admin-staff", "description": "Grants Django admin (is_staff) via admin_login" },
+        { "name": "django-admin-superuser", "description": "Grants Django is_superuser via admin_login" }
       ]
     }
   },
@@ -95,6 +97,24 @@
       ]
     },
     {
+      "clientId": "django-admin",
+      "name": "Django admin OIDC login",
+      "description": "Public client with PKCE for django_keycloak_jwt.admin_login. directAccessGrantsEnabled is on so e2e tests can obtain ID/refresh tokens without driving a real browser through Keycloak's login form -- never enable this in production.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:*"],
+      "webOrigins": ["http://localhost:*"],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
       "clientId": "other-client",
       "name": "Unrelated client (no audience mapper)",
       "description": "Used to prove tokens issued to a client without the api audience mapper are rejected.",
@@ -123,7 +143,7 @@
       ],
       "realmRoles": ["staff"],
       "clientRoles": {
-        "api": ["editor", "reader"]
+        "api": ["editor", "reader", "django-admin-staff", "django-admin-superuser"]
       }
     },
     {

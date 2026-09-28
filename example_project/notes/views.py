@@ -24,13 +24,16 @@ class MeView(APIView):
 
     def get(self, request: Request) -> Response:
         user = request.user
+        # USER_MODEL_ENABLED is on in this project, so request.user is the
+        # resolved AUTH_USER_MODEL row; claim/role helpers live on .keycloak.
+        principal = user.keycloak
         return Response(
             {
-                "sub": user.sub,
+                "sub": principal.sub,
                 "username": user.username,
                 "email": user.email,
-                "realm_roles": sorted(user.realm_roles),
-                "client_roles": sorted(user.client_roles()),
+                "realm_roles": sorted(principal.realm_roles),
+                "client_roles": sorted(principal.client_roles()),
             }
         )
 
@@ -51,7 +54,7 @@ class NoteListCreateView(ListCreateAPIView):
         return [IsAuthenticated()]
 
     def get_queryset(self):
-        return Note.objects.filter(owner_sub=self.request.user.sub)
+        return Note.objects.filter(owner_sub=self.request.user.keycloak.sub)
 
     def perform_create(self, serializer: NoteSerializer) -> None:
-        serializer.save(owner_sub=self.request.user.sub)
+        serializer.save(owner_sub=self.request.user.keycloak.sub)

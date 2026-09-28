@@ -38,3 +38,21 @@ class KeysUnavailable(KeycloakJWTError):
     failure (network/JWKS outage), not an untrustworthy token, and should
     map to HTTP 503 rather than 401.
     """
+
+
+class DiscoveryUnavailable(KeycloakJWTError):
+    """The OIDC discovery document could not be fetched or parsed.
+
+    Raised by :mod:`django_keycloak_jwt.discovery` when
+    ``.well-known/openid-configuration`` is unreachable or malformed and no
+    document is already cached for that issuer.
+    """
+
+
+class UserNotFound(KeycloakJWTError):
+    """``USER_MODEL_ENABLED`` is True, ``USER_MODEL_AUTO_CREATE`` is False,
+    and no local user row matches the token's claims.
+
+    Distinct from :class:`TokenInvalid` because the token itself is valid —
+    the local user simply hasn't been provisioned.
+    """

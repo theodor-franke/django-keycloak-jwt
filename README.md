@@ -2,10 +2,14 @@
 
 Stateless Keycloak JWT authentication for Django REST Framework.
 
-Django acts purely as an **OAuth2 resource server**: it validates Keycloak-issued
-`RS256` access tokens on every request against Keycloak's published JWKS. It never
-creates sessions, never stores users, and never calls Keycloak per request beyond
-periodic JWKS refresh.
+By default, Django acts purely as an **OAuth2 resource server**: it validates
+Keycloak-issued `RS256` access tokens on every request against Keycloak's published
+JWKS. It never creates sessions, never stores users, and never calls Keycloak per
+request beyond periodic JWKS refresh. Two things are opt-in on top of that default —
+caching a resolved local user row ([Resolving a local user](#resolving-a-local-user-optional))
+and a Keycloak OIDC login flow for Django admin
+([Django admin login](#django-admin-login-optional)) — neither changes the default
+behavior for anyone who doesn't enable them.
 
 ## What this is
 
@@ -16,20 +20,28 @@ periodic JWKS refresh.
 - A framework-agnostic validation core (`django_keycloak_jwt.validation`) with no Django or
   DRF imports, so it can be reused outside DRF (e.g. a future Django Channels
   middleware).
+- Optionally: a cached `AUTH_USER_MODEL` resolution layer, and a separate
+  `admin_login` module that lets Django admin be reached through Keycloak.
 
 ## What this is not
 
-- **Not a login flow.** There are no views for redirecting to Keycloak, handling the
-  authorization code exchange, or logging users out. Token acquisition is entirely
-  the frontend's job (Authorization Code + PKCE against Keycloak directly).
-- **Not a user store.** There is no `auth.User` row per Keycloak user, no signal that
-  creates one on first login, no local profile table. The verified JWT claims *are*
-  the user.
-- **Not a session system.** No `django.contrib.sessions`, no CSRF cookie, no server-side
-  logout. Revoking access means letting the (short-lived) token expire — see
-  [Security notes](#security-notes).
+- **Not a login flow, by default.** There are no views for redirecting to Keycloak,
+  handling the authorization code exchange, or logging users out unless you install
+  the optional `admin_login` module (for the Django admin surface specifically).
+  Token acquisition for the API is still entirely the frontend's job (Authorization
+  Code + PKCE against Keycloak directly).
+- **Not a user store, unless you opt in.** By default there is no `auth.User` row per
+  Keycloak user, no signal that creates one on first login, no local profile table —
+  the verified JWT claims *are* the user. Setting `USER_MODEL_ENABLED` trades that
+  for a cached local row; see below.
+- **Not a session system, for the API.** The DRF authentication path never uses
+  `django.contrib.sessions` or a CSRF cookie, and revoking API access still means
+  letting the (short-lived) token expire — see [Security notes](#security-notes).
+  Django admin, once you opt into `admin_login`, is a normal server-rendered app and
+  necessarily does use sessions — see [Django admin login](#django-admin-login-optional).
 - **Not token introspection.** Tokens are verified locally via signature + claims;
-  Keycloak is only contacted to fetch its public keys (JWKS), not per request.
+  Keycloak is only contacted to fetch its public keys (JWKS) and, for `admin_login`,
+  its OIDC discovery document — never per API request.
 
 ## Install
 
@@ -88,10 +100,17 @@ KEYCLOAK_JWT = {
 | `HTTP_TIMEOUT` | `5` | Seconds for the JWKS fetch. |
 | `USER_CLASS` | `"django_keycloak_jwt.principal.KeycloakUser"` | Dotted path; subclass to add fields. |
 | `AUTH_HEADER_REALM` | `"api"` | Used in `WWW-Authenticate: Bearer realm="..."`. |
+| `USER_MODEL_ENABLED` | `False` | Opt-in: resolve/cache a real `AUTH_USER_MODEL` row instead of the claims-only `KeycloakUser`. See [Resolving a local user](#resolving-a-local-user-optional). |
+| `USER_MODEL_LOOKUP_CLAIM` | `"sub"` | Claim used to find the local row. |
+| `USER_MODEL_LOOKUP_FIELD` | `None` | Required if `USER_MODEL_ENABLED`. Field on `AUTH_USER_MODEL` matched against `USER_MODEL_LOOKUP_CLAIM`. Must not also appear in `USER_MODEL_FIELD_MAP` (system check error) — use a dedicated field, not `username`/`email`. |
+| `USER_MODEL_FIELD_MAP` | `{"email": "email", "given_name": "first_name", "family_name": "last_name", "preferred_username": "username"}` | Claim → model field, synced on every cache-miss create/update. |
+| `USER_MODEL_AUTO_CREATE` | `True` | Create the row on first sight of a claim value if `False` and nothing matches, an `AuthenticationFailed(code="user_not_provisioned")`/`401` is raised instead. |
+| `USER_MODEL_CACHE_TTL` | `300` | Seconds the resolved row is cached for. |
+| `USER_MODEL_ROLE_FIELD_MAP` | `{}` | Client role (on `ROLE_CLIENT`) → boolean model field, e.g. `{"admin": "is_superuser"}`. Re-evaluated and saved on every cache-miss resolve — a role revoked in Keycloak demotes the local user on next sync, not just grants additively. |
 
 Run `python manage.py check` to catch misconfiguration: missing `ISSUER`/`AUDIENCE`,
-a non-HTTPS issuer while `DEBUG=False`, symmetric or `none` algorithms, and unknown
-keys in the dict are all flagged.
+a non-HTTPS issuer while `DEBUG=False`, symmetric or `none` algorithms, unknown keys
+in the dict, and the `USER_MODEL_*` invariants above are all flagged.
 
 Settings are loaded lazily and cached; `django.test.override_settings` correctly
 invalidates the cache, so tests can freely override `KEYCLOAK_JWT`.
@@ -172,6 +191,134 @@ Note.objects.filter(owner_sub=request.user.sub)
 
 See `example_project/notes/` for a complete example.
 
+### Resolving a local user (optional)
+
+Set `USER_MODEL_ENABLED: True` to have `request.user` become a real
+`AUTH_USER_MODEL` instance instead of the claims-only `KeycloakUser`, resolved from
+verified claims, cached in Django's default cache, and kept fresh via
+`post_save`/`post_delete` signals on `AUTH_USER_MODEL`:
+
+```python
+KEYCLOAK_JWT = {
+    "ISSUER": "https://kc.example.com/realms/myrealm",
+    "AUDIENCE": "my-backend",
+    "USER_MODEL_ENABLED": True,
+    "USER_MODEL_LOOKUP_CLAIM": "sub",
+    "USER_MODEL_LOOKUP_FIELD": "keycloak_sub",  # a dedicated field on your user model
+}
+```
+
+```python
+class User(AbstractUser):
+    keycloak_sub = models.UUIDField(unique=True, null=True, blank=True, db_index=True)
+```
+
+The resolved instance always carries a `.keycloak` attribute — a `KeycloakUser` (or
+your `USER_CLASS`) wrapping the same verified claims — so role/claim helpers stay
+reachable: `request.user.keycloak.sub`, `.realm_roles`, `.client_roles()`.
+`HasRealmRole`/`HasClientRole` accept either shape automatically. The `owner_sub`
+pattern above still applies; use `request.user.keycloak.sub`, not `request.user.sub`,
+once this is on.
+
+**This requires a process-shared cache backend** (Redis, Memcached) in any
+multi-worker deployment — with the default per-process `LocMemCache`, a user edited
+or deleted in one worker won't invalidate the cached copy held by another (flagged by
+the `django_keycloak_jwt.W003` system check). The resource-server authentication path
+otherwise makes zero DB queries per request except the first request for a given
+user after cache expiry/invalidation ("fetch once, cache" — not "fetch never").
+
+### Django admin login (optional)
+
+Django admin is a cookie/session HTML app — a browser can't attach an
+`Authorization: Bearer` header to a page load, so this is a genuinely separate
+feature from the stateless API path above, shipped as its own Django app,
+`django_keycloak_jwt.admin_login`, so nothing here affects a project that doesn't
+install it. It drives a real Authorization Code + PKCE redirect to Keycloak from the
+admin login page, then starts a normal Django session — from that point on, admin
+behaves exactly as it always has (session, CSRF, `LogEntry`, everything).
+
+It's built on the resolver above, so `USER_MODEL_ENABLED` (with a non-empty
+`USER_MODEL_ROLE_FIELD_MAP`) is required.
+
+**1. Register a second, dedicated Keycloak client** — public, PKCE (`S256`),
+standard flow, *no client secret*. Even though the code exchange happens
+server-side in a Django view, PKCE's `code_verifier` already proves possession of
+the original request; a secret would be one more credential to manage for no
+additional protection. Assign whatever client roles (on `ROLE_CLIENT`) you intend to
+map to `is_staff`/`is_superuser`.
+
+**2. Settings:**
+
+```python
+INSTALLED_APPS = [
+    ...,
+    "django.contrib.sessions",
+    "django.contrib.admin",
+    "django_keycloak_jwt.admin_login",
+]
+
+MIDDLEWARE = [
+    ...,
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Self-gating (no-op for sessions without Keycloak state), safe to add globally:
+    "django_keycloak_jwt.admin_login.middleware.KeycloakAdminSessionMiddleware",
+]
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "django_keycloak_jwt.admin_login.backends.KeycloakAdminBackend",
+]
+
+KEYCLOAK_JWT = {
+    ...,
+    "USER_MODEL_ENABLED": True,
+    "USER_MODEL_ROLE_FIELD_MAP": {"admin-role-name": "is_superuser"},
+}
+
+KEYCLOAK_JWT_ADMIN = {
+    "CLIENT_ID": "django-admin",
+    "LOGOUT_END_SESSION": True,  # also redirect through Keycloak's end_session_endpoint
+}
+```
+
+`AUTHORIZATION_ENDPOINT`/`TOKEN_ENDPOINT`/`END_SESSION_ENDPOINT` are resolved from
+Keycloak's OIDC discovery document (`.well-known/openid-configuration`) if left
+unset; set them explicitly if the internal URL Django uses to reach Keycloak differs
+from the public one the browser redirects to.
+
+**3. urls.py** — swap in the Keycloak-aware admin site (in place, so every
+existing `admin.site.register(...)` call, including `django.contrib.auth`'s own
+`User`/`Group` admin, keeps working unmodified) and wire up the login/callback/logout
+views:
+
+```python
+from django.contrib import admin
+from django.urls import include, path
+from django_keycloak_jwt.admin_login.admin_site import KeycloakAdminSite
+
+admin.site.__class__ = KeycloakAdminSite
+
+urlpatterns = [
+    ...,
+    path("admin-login/", include("django_keycloak_jwt.admin_login.urls")),
+    path("admin/", admin.site.urls),
+]
+```
+
+**Login is gated on roles.** The callback rejects (`403`) any login where none of
+`USER_MODEL_ROLE_FIELD_MAP`'s fields resolved `True` — a valid Keycloak login alone
+isn't enough to reach admin. The `django_keycloak_jwt.admin_login.E004` check refuses
+to start if that map is empty, since that would silently admit every Keycloak user
+with no flags ever set.
+
+**The session tracks the token, not the other way around.** On login,
+`request.session` is set to expire with the access token (typically a few minutes,
+per Keycloak's short-lived-token guidance); `KeycloakAdminSessionMiddleware` silently
+renews it in the background using the stored `refresh_token` as long as Keycloak
+keeps honoring it, and logs the session out the moment a refresh attempt fails —
+there's no separate, longer-lived Django session lifetime to reason about.
+
 ## Security notes
 
 - **Revocation only happens at `exp`.** There is no session to invalidate and no
@@ -188,7 +335,8 @@ See `example_project/notes/` for a complete example.
   outage doesn't necessarily interrupt already-known clients.
 - **No secrets or raw tokens are ever logged.** Only `kid`, `iss`, and error class
   names appear in log output.
-- **The authentication path makes zero database queries.** Enforced by a unit test
+- **The authentication path makes zero database queries by default**, and in
+  steady-state even with `USER_MODEL_ENABLED` on (see above). Enforced by a unit test
   (`django_assert_num_queries(0)`) and an e2e test against a real Postgres +
   Keycloak.
 

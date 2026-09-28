@@ -11,10 +11,12 @@ from rest_framework.exceptions import APIException, AuthenticationFailed
 
 from .. import validation
 from ..conf import get_settings
-from ..exceptions import KeysUnavailable, TokenExpired, TokenInvalid
+from ..exceptions import KeysUnavailable, TokenExpired, TokenInvalid, UserNotFound
 from ..principal import KeycloakUser
+from ..user_resolution import resolve_user
 
 if TYPE_CHECKING:
+    from django.contrib.auth.base_user import AbstractBaseUser
     from rest_framework.request import Request
 
 #: Expected ``[b"Bearer", b"<token>"]`` length of a well-formed header.
@@ -37,7 +39,7 @@ class KeycloakJWTAuthentication(BaseAuthentication):
     other configured authenticators (or anonymous access) can take over.
     """
 
-    def authenticate(self, request: Request) -> tuple[KeycloakUser, str] | None:
+    def authenticate(self, request: Request) -> tuple[KeycloakUser | AbstractBaseUser, str] | None:
         auth = get_authorization_header(request).split()
 
         if not auth or auth[0].lower() != b"bearer":
@@ -65,8 +67,17 @@ class KeycloakJWTAuthentication(BaseAuthentication):
         except KeysUnavailable as exc:
             raise AuthUnavailable() from exc
 
-        user_class = import_string(get_settings().USER_CLASS)
-        user: KeycloakUser = user_class(claims)
+        settings = get_settings()
+        if settings.USER_MODEL_ENABLED:
+            try:
+                user: KeycloakUser | AbstractBaseUser = resolve_user(claims)
+            except TokenInvalid as exc:
+                raise AuthenticationFailed(exc.reason, code="token_not_valid") from exc
+            except UserNotFound as exc:
+                raise AuthenticationFailed(str(exc), code="user_not_provisioned") from exc
+        else:
+            user_class = import_string(settings.USER_CLASS)
+            user = user_class(claims)
         return user, raw_token
 
     def authenticate_header(self, request: Request) -> str:

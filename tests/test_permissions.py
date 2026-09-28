@@ -5,6 +5,9 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
 from rest_framework.test import APIRequestFactory
 
+from django_keycloak_jwt.drf.permissions import HasClientRole, HasRealmRole
+from django_keycloak_jwt.principal import KeycloakUser
+
 from .conftest import AUDIENCE, ISSUER, JWKSServer, Signer, TokenFactory
 from .views import (
     RequireClientEditorExplicitClientView,
@@ -80,3 +83,33 @@ def test_anonymous_user_denied() -> None:
     request.user = AnonymousUser()
     response = RequireRealmStaffView.as_view()(request)
     assert response.status_code in (401, 403)
+
+
+class _ResolvedUserStub:
+    """Stands in for a USER_MODEL_ENABLED-resolved AUTH_USER_MODEL instance."""
+
+    def __init__(self, keycloak: KeycloakUser) -> None:
+        self.keycloak = keycloak
+
+
+def test_has_realm_role_accepts_keycloak_attribute() -> None:
+    request = factory.get("/staff/")
+    request.user = _ResolvedUserStub(KeycloakUser({"realm_access": {"roles": ["staff"]}}))
+
+    assert HasRealmRole.of("staff")().has_permission(request, None) is True
+
+
+def test_has_client_role_accepts_keycloak_attribute() -> None:
+    request = factory.get("/notes/")
+    request.user = _ResolvedUserStub(
+        KeycloakUser({"resource_access": {"api": {"roles": ["editor"]}}})
+    )
+
+    assert HasClientRole.of("editor")().has_permission(request, None) is True
+
+
+def test_has_realm_role_denied_without_keycloak_attribute() -> None:
+    request = factory.get("/staff/")
+    request.user = object()
+
+    assert HasRealmRole.of("staff")().has_permission(request, None) is False
