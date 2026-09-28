@@ -5,7 +5,7 @@ lint:
 	uv run ruff format --check .
 
 typecheck:
-	uv run mypy src/keycloak_jwt
+	uv run mypy src/django_keycloak_jwt
 
 test:
 	uv run pytest --cov --cov-report=term-missing

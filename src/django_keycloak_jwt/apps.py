@@ -7,7 +7,7 @@ from .checks import check_keycloak_jwt_settings
 
 
 class KeycloakJWTConfig(AppConfig):
-    name = "keycloak_jwt"
+    name = "django_keycloak_jwt"
     verbose_name = "Keycloak JWT"
 
     def ready(self) -> None:

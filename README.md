@@ -1,4 +1,4 @@
-# keycloak-jwt
+# django-keycloak-jwt
 
 Stateless Keycloak JWT authentication for Django REST Framework.
 
@@ -13,7 +13,7 @@ periodic JWKS refresh.
   against a Keycloak realm's public keys.
 - A claims-backed request principal (`request.user`) with realm/client role helpers.
 - Permission classes for realm and client roles.
-- A framework-agnostic validation core (`keycloak_jwt.validation`) with no Django or
+- A framework-agnostic validation core (`django_keycloak_jwt.validation`) with no Django or
   DRF imports, so it can be reused outside DRF (e.g. a future Django Channels
   middleware).
 
@@ -34,9 +34,9 @@ periodic JWKS refresh.
 ## Install
 
 ```bash
-pip install keycloak-jwt
+pip install django-keycloak-jwt
 # or, for OpenAPI schema generation support:
-pip install "keycloak-jwt[schema]"
+pip install "django-keycloak-jwt[schema]"
 ```
 
 Requires Python ≥ 3.13, Django 6.0/6.1, and `djangorestframework` ≥ 3.18.
@@ -47,7 +47,7 @@ Add to `INSTALLED_APPS` (registers the system checks in [Settings reference](#se
 INSTALLED_APPS = [
     ...,
     "rest_framework",
-    "keycloak_jwt",
+    "django_keycloak_jwt",
 ]
 ```
 
@@ -56,7 +56,7 @@ Wire up the authentication class, typically globally:
 ```python
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
+        "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
     ],
 }
 ```
@@ -86,7 +86,7 @@ KEYCLOAK_JWT = {
 | `JWKS_CACHE_LIFESPAN` | `300` | Seconds before a normal JWKS refetch. |
 | `JWKS_MIN_REFETCH_INTERVAL` | `30` | Minimum seconds between forced refetches triggered by an unknown `kid` — a DoS guard against random `kid`s forcing unlimited outbound requests. |
 | `HTTP_TIMEOUT` | `5` | Seconds for the JWKS fetch. |
-| `USER_CLASS` | `"keycloak_jwt.principal.KeycloakUser"` | Dotted path; subclass to add fields. |
+| `USER_CLASS` | `"django_keycloak_jwt.principal.KeycloakUser"` | Dotted path; subclass to add fields. |
 | `AUTH_HEADER_REALM` | `"api"` | Used in `WWW-Authenticate: Bearer realm="..."`. |
 
 Run `python manage.py check` to catch misconfiguration: missing `ISSUER`/`AUDIENCE`,
@@ -123,7 +123,7 @@ invalidates the cache, so tests can freely override `KEYCLOAK_JWT`.
 # settings.py
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
+        "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
     ],
 }
 ```
@@ -137,7 +137,7 @@ unreachable → `503`.
 ### Permissions
 
 ```python
-from keycloak_jwt.drf.permissions import HasClientRole, HasRealmRole
+from django_keycloak_jwt.drf.permissions import HasClientRole, HasRealmRole
 
 
 class NoteListCreateView(ListCreateAPIView):
@@ -198,7 +198,7 @@ See `example_project/notes/` for a complete example.
 uv sync --group dev
 
 make lint        # ruff check + ruff format --check
-make typecheck    # mypy --strict on src/keycloak_jwt
+make typecheck    # mypy --strict on src/django_keycloak_jwt
 make test         # unit tests, coverage gate at 90%
 
 # End-to-end (needs Docker):

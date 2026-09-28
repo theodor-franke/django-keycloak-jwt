@@ -26,14 +26,16 @@ def check_keycloak_jwt_settings(
             Error(
                 "KEYCLOAK_JWT setting is not configured.",
                 hint="Define a KEYCLOAK_JWT dict in your Django settings.",
-                id="keycloak_jwt.E001",
+                id="django_keycloak_jwt.E001",
             )
         )
         return messages
 
     for key in REQUIRED_KEYS:
         if not raw.get(key):
-            messages.append(Error(f"KEYCLOAK_JWT[{key!r}] is required.", id="keycloak_jwt.E002"))
+            messages.append(
+                Error(f"KEYCLOAK_JWT[{key!r}] is required.", id="django_keycloak_jwt.E002")
+            )
 
     issuer = raw.get("ISSUER")
     if issuer and not settings.DEBUG and not str(issuer).startswith("https://"):
@@ -41,7 +43,7 @@ def check_keycloak_jwt_settings(
             Warning(
                 f"KEYCLOAK_JWT['ISSUER'] ({issuer!r}) is not HTTPS while DEBUG=False.",
                 hint="Use an https:// issuer in production.",
-                id="keycloak_jwt.W001",
+                id="django_keycloak_jwt.W001",
             )
         )
 
@@ -52,7 +54,7 @@ def check_keycloak_jwt_settings(
             Error(
                 f"KEYCLOAK_JWT['ALGORITHMS'] contains forbidden algorithm(s): {sorted(forbidden)}.",
                 hint="Only asymmetric algorithms (e.g. RS256) are allowed.",
-                id="keycloak_jwt.E003",
+                id="django_keycloak_jwt.E003",
             )
         )
 
@@ -61,7 +63,7 @@ def check_keycloak_jwt_settings(
         messages.append(
             Warning(
                 f"KEYCLOAK_JWT contains unknown key(s): {sorted(unknown)}.",
-                id="keycloak_jwt.W002",
+                id="django_keycloak_jwt.W002",
             )
         )
 

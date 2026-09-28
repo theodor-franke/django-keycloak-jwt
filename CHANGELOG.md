@@ -10,8 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `KeycloakJWTAuthentication` — DRF authentication backend validating Keycloak-issued
   RS256 access tokens against the realm's JWKS. No sessions, no `auth.User` lookups,
   no database queries on the authentication path.
-- Framework-agnostic validation core (`keycloak_jwt.validation`) usable outside DRF.
-- Thread-safe JWKS cache (`keycloak_jwt.jwks`) with `kid`+`alg` key matching,
+- Framework-agnostic validation core (`django_keycloak_jwt.validation`) usable outside DRF.
+- Thread-safe JWKS cache (`django_keycloak_jwt.jwks`) with `kid`+`alg` key matching,
   rate-limited forced refetch on unknown `kid`, and stale-while-error fallback.
 - `KeycloakUser` claims-backed principal with realm/client role helpers.
 - `HasRealmRole` / `HasClientRole` DRF permission classes with `.of(...)` factories.

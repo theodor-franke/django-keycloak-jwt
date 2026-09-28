@@ -14,12 +14,12 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
-    "keycloak_jwt",
+    "django_keycloak_jwt",
 ]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
+        "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [],
 }

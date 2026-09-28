@@ -1,4 +1,4 @@
-"""Minimal Django settings for the keycloak_jwt example/e2e project.
+"""Minimal Django settings for the django_keycloak_jwt example/e2e project.
 
 Deliberately excludes ``django.contrib.sessions`` and its middleware: this
 project is a pure OAuth2 resource server, it never creates sessions.
@@ -19,7 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
-    "keycloak_jwt",
+    "django_keycloak_jwt",
     "notes",
 ]
 
@@ -53,7 +53,7 @@ STATIC_URL = "/static/"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
+        "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

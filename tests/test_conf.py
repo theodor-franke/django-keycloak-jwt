@@ -4,7 +4,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
 
-from keycloak_jwt.conf import get_settings
+from django_keycloak_jwt.conf import get_settings
 
 
 def test_jwks_url_derived_from_issuer() -> None:

@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from jwt.algorithms import RSAAlgorithm
 
-from keycloak_jwt import jwks as jwks_module
+from django_keycloak_jwt import jwks as jwks_module
 
 ISSUER = "https://kc.example.test/realms/test"
 AUDIENCE = "test-client"

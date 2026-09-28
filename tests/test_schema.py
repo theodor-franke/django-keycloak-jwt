@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("drf_spectacular")
 
-from keycloak_jwt.drf.schema import KeycloakJWTScheme
+from django_keycloak_jwt.drf.schema import KeycloakJWTScheme
 
 
 def test_security_definition_is_bearer_jwt() -> None:
@@ -21,5 +21,5 @@ def test_security_definition_is_bearer_jwt() -> None:
 def test_target_class_points_at_authentication_backend() -> None:
     assert (
         KeycloakJWTScheme.target_class
-        == "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication"
+        == "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication"
     )

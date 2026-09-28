@@ -8,7 +8,7 @@ provide out of the box:
 - a dedicated, independently observable rate limit on refetches triggered
   by an unknown ``kid`` (``JWKS_MIN_REFETCH_INTERVAL``) — a DoS guard
   against random ``kid``s forcing unlimited outbound requests,
-- mapping network/parse failures to :class:`~keycloak_jwt.exceptions.KeysUnavailable`
+- mapping network/parse failures to :class:`~django_keycloak_jwt.exceptions.KeysUnavailable`
   instead of letting PyJWT's own exception types leak out,
 - stale-while-error: serving a previously good key for a known ``kid`` if
   a refetch fails, with a warning log (never a raw token or key material).
@@ -30,7 +30,7 @@ from .exceptions import KeysUnavailable, TokenInvalid
 if TYPE_CHECKING:
     from .conf import KeycloakJWTSettings
 
-logger = logging.getLogger("keycloak_jwt")
+logger = logging.getLogger("django_keycloak_jwt")
 
 USER_AGENT = f"django-keycloak-jwt/{__version__}"
 
@@ -124,9 +124,9 @@ def _cache_for(kc_settings: KeycloakJWTSettings) -> _JWKSCache:
 def get_signing_key(kc_settings: KeycloakJWTSettings, kid: str, alg: str) -> PyJWK:
     """Resolve the signing key for *kid* / *alg* under the given settings.
 
-    Raises :class:`~keycloak_jwt.exceptions.TokenInvalid` for an unknown
+    Raises :class:`~django_keycloak_jwt.exceptions.TokenInvalid` for an unknown
     ``kid`` (rate-limited refetch already attempted or on cooldown) and
-    :class:`~keycloak_jwt.exceptions.KeysUnavailable` if the JWKS cannot be
+    :class:`~django_keycloak_jwt.exceptions.KeysUnavailable` if the JWKS cannot be
     fetched or parsed and no stale key is available.
     """
     return _cache_for(kc_settings).get_signing_key(kid, alg)

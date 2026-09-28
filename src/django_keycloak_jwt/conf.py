@@ -29,7 +29,7 @@ DEFAULTS: dict[str, Any] = {
     "JWKS_CACHE_LIFESPAN": 300,
     "JWKS_MIN_REFETCH_INTERVAL": 30,
     "HTTP_TIMEOUT": 5,
-    "USER_CLASS": "keycloak_jwt.principal.KeycloakUser",
+    "USER_CLASS": "django_keycloak_jwt.principal.KeycloakUser",
     "AUTH_HEADER_REALM": "api",
 }
 

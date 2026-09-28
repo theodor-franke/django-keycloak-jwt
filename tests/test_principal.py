@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from django.test import override_settings
 
-from keycloak_jwt.principal import KeycloakUser
+from django_keycloak_jwt.principal import KeycloakUser
 
 
 def make_user(**claims: object) -> KeycloakUser:

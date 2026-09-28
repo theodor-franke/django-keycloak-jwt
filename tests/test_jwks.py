@@ -5,9 +5,9 @@ import time
 import pytest
 from django.test import override_settings
 
-from keycloak_jwt import jwks
-from keycloak_jwt.conf import get_settings
-from keycloak_jwt.exceptions import KeysUnavailable, TokenInvalid
+from django_keycloak_jwt import jwks
+from django_keycloak_jwt.conf import get_settings
+from django_keycloak_jwt.exceptions import KeysUnavailable, TokenInvalid
 
 from .conftest import JWKSServer, Signer, make_rsa_keypair, public_jwk
 
@@ -123,7 +123,7 @@ def test_stale_key_used_when_server_down(
     time.sleep(0.1)  # let PyJWKClient's own TTL cache expire
     jwks_server.state.status_code = 500
 
-    with caplog.at_level("WARNING", logger="keycloak_jwt"):
+    with caplog.at_level("WARNING", logger="django_keycloak_jwt"):
         key = jwks.get_signing_key(settings, signer.kid, "RS256")
 
     assert key.key_id == signer.kid

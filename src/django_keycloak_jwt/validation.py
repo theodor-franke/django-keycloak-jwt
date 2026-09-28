@@ -1,7 +1,7 @@
 """Framework-agnostic token validation core.
 
 ``validate_token`` takes a raw bearer token string and returns its verified
-claims, or raises one of the exceptions in :mod:`keycloak_jwt.exceptions`.
+claims, or raises one of the exceptions in :mod:`django_keycloak_jwt.exceptions`.
 No Django request objects, no DRF imports — this module is reused as-is by
 any future Django Channels integration.
 """
@@ -24,9 +24,9 @@ REQUIRED_CLAIMS = ["exp", "iat", "iss", "sub", "aud"]
 def validate_token(raw: str) -> dict[str, Any]:
     """Validate a raw ``Authorization: Bearer`` token and return its claims.
 
-    Raises :class:`~keycloak_jwt.exceptions.TokenInvalid`,
-    :class:`~keycloak_jwt.exceptions.TokenExpired`, or
-    :class:`~keycloak_jwt.exceptions.KeysUnavailable`.
+    Raises :class:`~django_keycloak_jwt.exceptions.TokenInvalid`,
+    :class:`~django_keycloak_jwt.exceptions.TokenExpired`, or
+    :class:`~django_keycloak_jwt.exceptions.KeysUnavailable`.
     """
     return _validate_token(raw, get_settings())
 

@@ -11,8 +11,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from django.test import override_settings
 
-from keycloak_jwt import validation
-from keycloak_jwt.exceptions import TokenExpired, TokenInvalid
+from django_keycloak_jwt import validation
+from django_keycloak_jwt.exceptions import TokenExpired, TokenInvalid
 
 from .conftest import AUDIENCE, ISSUER, JWKSServer, Signer, TokenFactory
 

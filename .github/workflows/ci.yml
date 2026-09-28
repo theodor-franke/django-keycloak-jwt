@@ -22,7 +22,7 @@ jobs:
       - run: uv sync --group dev
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy src/keycloak_jwt
+      - run: uv run mypy src/django_keycloak_jwt
 
   unit:
     runs-on: ubuntu-latest
@@ -53,7 +53,7 @@ jobs:
         run: |
           uv venv /tmp/build-check
           uv pip install --python /tmp/build-check/bin/python dist/*.whl
-          /tmp/build-check/bin/python -c "import keycloak_jwt; print(keycloak_jwt.__version__)"
+          /tmp/build-check/bin/python -c "import django_keycloak_jwt; print(django_keycloak_jwt.__version__)"
       - uses: actions/upload-artifact@v7
         with:
           name: dist

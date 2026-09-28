@@ -1,5 +1,5 @@
-import keycloak_jwt
+import django_keycloak_jwt
 
 
 def test_package_importable() -> None:
-    assert keycloak_jwt.__version__
+    assert django_keycloak_jwt.__version__

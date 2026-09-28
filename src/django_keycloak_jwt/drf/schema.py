@@ -15,7 +15,7 @@ from drf_spectacular.extensions import OpenApiAuthenticationExtension
 
 
 class KeycloakJWTScheme(OpenApiAuthenticationExtension):  # type: ignore[no-untyped-call]
-    target_class = "keycloak_jwt.drf.authentication.KeycloakJWTAuthentication"
+    target_class = "django_keycloak_jwt.drf.authentication.KeycloakJWTAuthentication"
     name = "KeycloakJWT"
 
     def get_security_definition(self, auto_schema: Any) -> dict[str, str]:
