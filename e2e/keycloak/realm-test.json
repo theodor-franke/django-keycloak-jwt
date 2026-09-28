@@ -1,0 +1,142 @@
+{
+  "realm": "test",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "staff", "description": "Realm-wide staff role" }
+    ],
+    "client": {
+      "api": [
+        { "name": "reader", "description": "Can read notes" },
+        { "name": "editor", "description": "Can create notes" }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "api",
+      "name": "Backend resource server",
+      "description": "Represents this Django backend. Never used to obtain tokens itself -- only as a role namespace and audience.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "api-secret-not-used",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false
+    },
+    {
+      "clientId": "frontend",
+      "name": "Frontend SPA",
+      "description": "Public client with PKCE. Test realm only: directAccessGrantsEnabled is on so e2e tests can obtain tokens via the password grant without a browser -- never enable this in production.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "frontend-short",
+      "name": "Frontend SPA (short-lived access token)",
+      "description": "Same as frontend but with a 5 second access token lifespan, for the expiry e2e test. Test realm only.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "5"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "other-client",
+      "name": "Unrelated client (no audience mapper)",
+      "description": "Used to prove tokens issued to a client without the api audience mapper are rejected.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "fullScopeAllowed": false
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Example",
+      "email": "alice@example.test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "alice-pass", "temporary": false }
+      ],
+      "realmRoles": ["staff"],
+      "clientRoles": {
+        "api": ["editor", "reader"]
+      }
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Example",
+      "email": "bob@example.test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "bob-pass", "temporary": false }
+      ]
+    }
+  ]
+}

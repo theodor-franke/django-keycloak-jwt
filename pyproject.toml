@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling>=1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "keycloak-jwt"
+version = "0.1.0"
+description = "Stateless Keycloak JWT authentication for Django REST Framework"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [{ name = "Theodor Franke", email = "theodor.franke@icloud.com" }]
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "Django>=6.0,<7",
+    "djangorestframework>=3.18,<4",
+    "PyJWT[crypto]>=2.15,<3",
+]
+
+[project.optional-dependencies]
+schema = ["drf-spectacular>=0.29"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-django>=4.14",
+    "pytest-cov>=7.1",
+    "requests>=2.34",
+    "ruff>=0.16",
+    "mypy>=2.3",
+    "django-stubs>=6.1",
+    "djangorestframework-stubs>=3.18",
+    "cryptography>=50.0",
+    "drf-spectacular>=0.29",
+    "psycopg[binary]>=3.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/django-keycloak-stateless"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/keycloak_jwt"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests", "example_project", "e2e"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PL", "RUF"]
+ignore = ["PLR0913"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "S101"]
+"e2e/**" = ["PLR2004", "S101"]
+"**/migrations/*.py" = ["RUF012"]
+"**/manage.py" = ["PLC0415"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["mypy_django_plugin.main"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+python_files = ["test_*.py"]
+addopts = "-m 'not e2e'"
+markers = ["e2e: end-to-end tests requiring a live Keycloak + Postgres"]
+pythonpath = [".", "example_project"]
+
+[tool.coverage.run]
+source = ["src/keycloak_jwt"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

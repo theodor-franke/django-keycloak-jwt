@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+import pytest
+from django.db import connection
+from django.test import Client
+from django.test.utils import CaptureQueriesContext
+
+pytestmark = [pytest.mark.e2e, pytest.mark.django_db]
+
+
+def test_authentication_path_makes_no_db_queries(alice_token: str) -> None:
+    client = Client()
+    with CaptureQueriesContext(connection) as ctx:
+        response = client.get("/api/me/", HTTP_AUTHORIZATION=f"Bearer {alice_token}")
+
+    assert response.status_code == 200
+    assert len(ctx) == 0

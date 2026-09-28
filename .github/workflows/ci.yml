@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # Keep this in sync with docker-compose.yml.
+  KEYCLOAK_IMAGE: quay.io/keycloak/keycloak:26.7
+  KC_REALM_PATH: e2e/keycloak
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src/keycloak_jwt
+
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+        django-version: ["6.0", "6.1"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv venv --python ${{ matrix.python-version }}
+      - run: uv pip install -e . --group dev
+      - run: uv pip install "Django==${{ matrix.django-version }}.*"
+      - run: uv run --no-sync pytest -m "not e2e" --cov --cov-fail-under=90
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv build
+      - name: Verify the wheel installs into a clean venv
+        run: |
+          uv venv /tmp/build-check
+          uv pip install --python /tmp/build-check/bin/python dist/*.whl
+          /tmp/build-check/bin/python -c "import keycloak_jwt; print(keycloak_jwt.__version__)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  e2e:
+    needs: [unit]
+    runs-on: ubuntu-latest
+    # GitHub Actions `services:` containers can't take a command
+    # (Keycloak needs `start-dev --import-realm`) and are created before
+    # `actions/checkout`, so they can't mount the realm JSON from the repo.
+    # Postgres has no such requirement, so it runs as a service; Keycloak is
+    # started by hand in a step after checkout.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: keycloak_jwt_example
+          POSTGRES_USER: keycloak_jwt
+          POSTGRES_PASSWORD: keycloak_jwt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U keycloak_jwt -d keycloak_jwt_example"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: keycloak_jwt_example
+      POSTGRES_USER: keycloak_jwt
+      POSTGRES_PASSWORD: keycloak_jwt
+      DJANGO_SETTINGS_MODULE: example_project.settings
+      KC_ISSUER: http://localhost:8080/realms/test
+      KC_AUDIENCE: api
+      KC_ROLE_CLIENT: api
+      KC_URL: http://localhost:8080
+      KC_MGMT_URL: http://localhost:9000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak \
+            -p 8080:8080 -p 9000:9000 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -e KC_HEALTH_ENABLED=true \
+            -v "$PWD/$KC_REALM_PATH:/opt/keycloak/data/import" \
+            "$KEYCLOAK_IMAGE" \
+            start-dev --import-realm
+
+      - name: Wait for Keycloak to be ready
+        run: |
+          timeout=120
+          elapsed=0
+          until curl -sf http://localhost:9000/health/ready >/dev/null 2>&1; do
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "::error::Keycloak did not become ready within ${timeout}s"
+              exit 1
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+      - name: Run example_project migrations
+        run: uv run python example_project/manage.py migrate
+
+      - name: Run e2e tests
+        run: uv run pytest -m e2e e2e/
+
+      - name: Show Keycloak logs
+        if: failure()
+        run: docker logs keycloak
