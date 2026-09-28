@@ -1,0 +1,29 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  # Runs the full CI suite (lint, unit matrix, build, e2e) as a gate: publish
+  # only proceeds if every job in ci.yml succeeds for this tagged commit.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [ci]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/keycloak-jwt
+    permissions:
+      id-token: write # required for PyPI trusted publishing (OIDC)
+    steps:
+      # Reuses the wheel/sdist already built and uploaded by ci.yml's
+      # "build" job above -- no need to build a second time.
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@v1.14.2

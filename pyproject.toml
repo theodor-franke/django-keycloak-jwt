@@ -11,11 +11,18 @@ requires-python = ">=3.13"
 license = "MIT"
 authors = [{ name = "Theodor Franke", email = "theodor.franke@icloud.com" }]
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Framework :: Django",
     "Framework :: Django :: 6.0",
     "Framework :: Django :: 6.1",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: Session",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -43,7 +50,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/example/django-keycloak-stateless"
+Homepage = "https://github.com/theodor-franke/django-keycloak-jwt"
+Repository = "https://github.com/theodor-franke/django-keycloak-jwt"
+Issues = "https://github.com/theodor-franke/django-keycloak-jwt/issues"
+Changelog = "https://github.com/theodor-franke/django-keycloak-jwt/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/keycloak_jwt"]

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call: # allows publish.yml to run this full suite as a gate
 
 env:
   # Keep this in sync with docker-compose.yml.
