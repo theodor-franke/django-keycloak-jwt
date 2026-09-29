@@ -35,12 +35,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `accounts.User` model (`keycloak_sub` field), Django admin wired through
   `admin_login`, and the corresponding Keycloak client/roles in
   `e2e/keycloak/realm-test.json`.
+- `django_keycloak_jwt.channels` — a separate, opt-in Django Channels integration
+  (`pip install "django-keycloak-jwt[channels]"`) authenticating WebSocket
+  connections: `KeycloakChannelsAuthMiddleware` (token via the
+  `Sec-WebSocket-Protocol` handshake, not the query string) and
+  `KeycloakWebsocketConsumerMixin` (echoes the subprotocol on accept; schedules a
+  disconnect at the token's `exp`, since a long-lived socket would otherwise
+  outlive it unlike a per-request HTTP check). Reuses the framework-agnostic
+  `validation.py` core via `sync_to_async`/`channels.db.database_sync_to_async`.
+  New `KEYCLOAK_JWT_CHANNELS` settings (`SUBPROTOCOL_NAME`, three `CLOSE_CODE_*`
+  keys, all defaulted) with their own system checks
+  (`django_keycloak_jwt.channels.E001`/`E002`/`W001`/`W002`).
 
 ### Changed
 
 - `HasRealmRole`/`HasClientRole` now also accept a resolved `AUTH_USER_MODEL`
   instance exposing the claims principal via `.keycloak`, not only a bare
   `KeycloakUser`, so they keep working whether or not `USER_MODEL_ENABLED` is on.
+- `KeycloakJWTConfig.ready()` now only connects the `USER_MODEL_ENABLED`
+  cache-invalidation signals if the setting is already `True` at Django startup,
+  rather than unconditionally — zero signal-registration cost for projects that
+  never enable the feature. Because of this, tests that exercise
+  signal-triggered invalidation need `USER_MODEL_ENABLED` to be true from
+  process start (not toggled via `override_settings` mid-session); they now live
+  in a separate `tests_user_model/` suite with its own settings module, run via
+  `make test-user-model`.
 
 ## [0.1.0] - 2026-09-28
 

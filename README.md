@@ -5,11 +5,12 @@ Stateless Keycloak JWT authentication for Django REST Framework.
 By default, Django acts purely as an **OAuth2 resource server**: it validates
 Keycloak-issued `RS256` access tokens on every request against Keycloak's published
 JWKS. It never creates sessions, never stores users, and never calls Keycloak per
-request beyond periodic JWKS refresh. Two things are opt-in on top of that default —
-caching a resolved local user row ([Resolving a local user](#resolving-a-local-user-optional))
-and a Keycloak OIDC login flow for Django admin
-([Django admin login](#django-admin-login-optional)) — neither changes the default
-behavior for anyone who doesn't enable them.
+request beyond periodic JWKS refresh. Three things are opt-in on top of that default —
+caching a resolved local user row ([Resolving a local user](#resolving-a-local-user-optional)),
+a Keycloak OIDC login flow for Django admin
+([Django admin login](#django-admin-login-optional)), and WebSocket authentication for
+Django Channels ([Django Channels](#django-channels-optional)) — none of which changes
+the default behavior for anyone who doesn't enable them.
 
 ## What this is
 
@@ -18,10 +19,10 @@ behavior for anyone who doesn't enable them.
 - A claims-backed request principal (`request.user`) with realm/client role helpers.
 - Permission classes for realm and client roles.
 - A framework-agnostic validation core (`django_keycloak_jwt.validation`) with no Django or
-  DRF imports, so it can be reused outside DRF (e.g. a future Django Channels
-  middleware).
-- Optionally: a cached `AUTH_USER_MODEL` resolution layer, and a separate
-  `admin_login` module that lets Django admin be reached through Keycloak.
+  DRF imports, reused as-is by the optional Channels integration below.
+- Optionally: a cached `AUTH_USER_MODEL` resolution layer, a separate `admin_login`
+  module that lets Django admin be reached through Keycloak, and a separate `channels`
+  module authenticating WebSocket connections the same way.
 
 ## What this is not
 
@@ -49,6 +50,8 @@ behavior for anyone who doesn't enable them.
 pip install django-keycloak-jwt
 # or, for OpenAPI schema generation support:
 pip install "django-keycloak-jwt[schema]"
+# or, for the optional Django Channels (WebSocket) integration:
+pip install "django-keycloak-jwt[channels]"
 ```
 
 Requires Python ≥ 3.13, Django 6.0/6.1, and `djangorestframework` ≥ 3.18.
@@ -318,6 +321,84 @@ per Keycloak's short-lived-token guidance); `KeycloakAdminSessionMiddleware` sil
 renews it in the background using the stored `refresh_token` as long as Keycloak
 keeps honoring it, and logs the session out the moment a refresh attempt fails —
 there's no separate, longer-lived Django session lifetime to reason about.
+
+### Django Channels (optional)
+
+`pip install "django-keycloak-jwt[channels]"`. A separate `django_keycloak_jwt.channels`
+module authenticating WebSocket connections — a genuinely different problem from the
+DRF path, since a browser's `WebSocket` API can't set an `Authorization` header on the
+handshake, and a connection is long-lived rather than one-shot per request.
+
+**Token transport: the `Sec-WebSocket-Protocol` header, not the query string.** The
+client opens the socket offering the token as the second subprotocol entry:
+
+```javascript
+const socket = new WebSocket(url, ["access_token", accessToken]);
+```
+
+This keeps the token out of URLs, server access logs, and browser history — the
+tradeoff other approaches (`?token=...`) don't make. The server must echo back the
+first entry (just the marker, never the token) when accepting, which
+`KeycloakWebsocketConsumerMixin` (below) handles for you.
+
+**Wiring, in `asgi.py`:**
+
+```python
+from channels.routing import ProtocolTypeRouter, URLRouter
+from django_keycloak_jwt.channels.middleware import KeycloakChannelsAuthMiddleware
+
+application = ProtocolTypeRouter(
+    {
+        "websocket": KeycloakChannelsAuthMiddleware(URLRouter(websocket_urlpatterns)),
+    }
+)
+```
+
+**Consumer:**
+
+```python
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django_keycloak_jwt.channels.consumer import KeycloakWebsocketConsumerMixin
+
+
+class NotesConsumer(KeycloakWebsocketConsumerMixin, AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        if not self.scope["user"].is_authenticated:
+            await self.close(code=4401)
+            return
+        await super().connect()  # accepts (echoing the subprotocol) + schedules the exp disconnect
+
+    async def disconnect(self, code):
+        await super().disconnect(code)  # cancels the pending expiry task
+```
+
+`scope["user"]` is populated exactly like `request.user` for the DRF path — a
+`KeycloakUser` by default, or the resolved `AUTH_USER_MODEL` instance if
+`USER_MODEL_ENABLED` (with the same `.keycloak` attribute for role/claim access).
+**No token offered at all** → `scope["user"]` is `AnonymousUser()` and the consumer's
+own `connect()` decides what to do (so a route can stay public, same as
+`AllowAny` today). **A token *is* offered but invalid/expired** → the middleware denies
+the handshake itself, before the consumer's `connect()` ever runs, closing with
+`KEYCLOAK_JWT_CHANNELS['CLOSE_CODE_TOKEN_INVALID']` (default `4401`) or, if the JWKS
+couldn't be fetched, `CLOSE_CODE_AUTH_UNAVAILABLE` (default `4503`).
+
+**A WebSocket can stay open far longer than an access token's `exp`, unlike an HTTP
+request.** Once validated at connect time, a token is never re-checked for the rest of
+the connection *except* that `KeycloakWebsocketConsumerMixin` schedules a disconnect
+for the moment it would expire (`CLOSE_CODE_TOKEN_EXPIRED`, default `4001`) — the
+client must reconnect with a fresh token; there's no refresh-over-the-socket.
+
+| `KEYCLOAK_JWT_CHANNELS` key | Default | Notes |
+|---|---|---|
+| `SUBPROTOCOL_NAME` | `"access_token"` | The marker string identifying the token in `Sec-WebSocket-Protocol`. |
+| `CLOSE_CODE_TOKEN_INVALID` | `4401` | Handshake denied: missing/invalid/expired token, or (with `USER_MODEL_ENABLED`) not provisioned. |
+| `CLOSE_CODE_AUTH_UNAVAILABLE` | `4503` | Handshake denied: JWKS temporarily unreachable. |
+| `CLOSE_CODE_TOKEN_EXPIRED` | `4001` | Mid-connection disconnect at the token's `exp`. |
+
+Entirely optional to define — every key defaults, so the dict itself need not exist in
+settings at all. Codes are validated by system checks (`django_keycloak_jwt.channels.*`)
+to stay in WebSocket's `4000`-`4999` private-use range (RFC 6455 §7.4.2) and stay
+distinct from each other, so a client can always tell the three failure modes apart.
 
 ## Security notes
 

@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 schema = ["drf-spectacular>=0.29"]
+channels = ["channels>=4.0"]
 
 [dependency-groups]
 dev = [
@@ -47,6 +48,8 @@ dev = [
     "cryptography>=50.0",
     "drf-spectacular>=0.29",
     "psycopg[binary]>=3.2",
+    "channels>=4.0",
+    "daphne>=4.1",  # channels.testing.WebsocketCommunicator needs this importable
 ]
 
 [project.urls]
@@ -82,6 +85,10 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "channels.*"
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "tests.settings"
