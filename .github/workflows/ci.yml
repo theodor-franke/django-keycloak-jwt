@@ -13,10 +13,10 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv sync --group dev
@@ -25,7 +25,7 @@ jobs:
       - run: uv run mypy src/django_keycloak_jwt
 
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +33,7 @@ jobs:
         django-version: ["6.0", "6.1"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv venv --python ${{ matrix.python-version }}
@@ -46,10 +46,10 @@ jobs:
         run: uv run --no-sync pytest tests_user_model/
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv build
@@ -65,7 +65,7 @@ jobs:
 
   e2e:
     needs: [unit]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # GitHub Actions `services:` containers can't take a command
     # (Keycloak needs `start-dev --import-realm`) and are created before
     # `actions/checkout`, so they can't mount the realm JSON from the repo.
@@ -99,7 +99,7 @@ jobs:
       KC_MGMT_URL: http://localhost:9000
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv sync --group dev
