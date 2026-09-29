@@ -20,6 +20,7 @@ import requests
 from django_keycloak_jwt.admin_login import oidc
 from django_keycloak_jwt.admin_login.conf import get_admin_settings
 from django_keycloak_jwt.conf import get_settings
+from django_keycloak_jwt.exceptions import TokenInvalid
 from django_keycloak_jwt.user_resolution import resolve_user
 
 from .conftest import TOKEN_URL
@@ -63,7 +64,13 @@ def test_validate_id_token_accepts_real_keycloak_token() -> None:
 def test_validate_id_token_rejects_access_token_as_id_token() -> None:
     tokens = _admin_tokens("alice", "alice-pass")
 
-    with pytest.raises(Exception, match="unexpected_typ"):
+    # Keycloak's default access token `aud` is "account", not the requesting
+    # client -- so this access token gets rejected by the audience check
+    # inside jwt.decode() before validate_id_token's own `typ` check ever
+    # runs. Both are legitimate rejections; what matters here is that an
+    # access token is never accepted as an ID token, not which check fires
+    # first (that's covered at the unit level with a controlled token).
+    with pytest.raises(TokenInvalid):
         oidc.validate_id_token(tokens["access_token"])
 
 

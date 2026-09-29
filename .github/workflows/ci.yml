@@ -13,7 +13,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -25,7 +25,7 @@ jobs:
       - run: uv run mypy src/django_keycloak_jwt
 
   unit:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +46,7 @@ jobs:
         run: uv run --no-sync pytest tests_user_model/
 
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -65,7 +65,7 @@ jobs:
 
   e2e:
     needs: [unit]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # GitHub Actions `services:` containers can't take a command
     # (Keycloak needs `start-dev --import-realm`) and are created before
     # `actions/checkout`, so they can't mount the realm JSON from the repo.

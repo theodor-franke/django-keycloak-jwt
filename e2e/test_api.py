@@ -31,7 +31,15 @@ def test_alice_me(live_server, alice_token: str) -> None:
     body = response.json()
     assert body["username"] == "alice"
     assert body["realm_roles"] == ["staff"]
-    assert sorted(body["client_roles"]) == ["editor", "reader"]
+    # Alice also carries the admin_login e2e roles (django-admin-staff/
+    # -superuser) on the same "api" client, since ROLE_CLIENT is shared
+    # between the notes API and USER_MODEL_ROLE_FIELD_MAP in this realm.
+    assert sorted(body["client_roles"]) == [
+        "django-admin-staff",
+        "django-admin-superuser",
+        "editor",
+        "reader",
+    ]
 
 
 def test_alice_creates_note_and_bob_cannot_see_it(
