@@ -120,6 +120,40 @@ def test_resolve_user_syncs_role_field_map() -> None:
     assert User.objects.get(username="alice-sub").is_staff is False
 
 
+def test_resolve_user_dedupes_colliding_username_on_create() -> None:
+    """USER_MODEL_LOOKUP_FIELD (sub-backed) and the FIELD_MAP's username
+    target are independent columns in real deployments (see
+    example_project's dedicated ``keycloak_sub`` field). Two different
+    Keycloak subjects sharing a preferred_username must not crash the
+    login -- the second one gets a numeric suffix instead.
+    """
+    User.objects.create(username="alice", email="someone-else@example.test")
+
+    collision_settings = _settings(
+        USER_MODEL_LOOKUP_FIELD="email",
+        USER_MODEL_FIELD_MAP={"preferred_username": "username"},
+    )
+    with override_settings(KEYCLOAK_JWT=collision_settings):
+        user = resolve_user(CLAIMS)
+
+    assert user.username == "alice_1"
+    assert User.objects.count() == 2
+
+
+def test_resolve_user_dedupes_colliding_username_multiple_times() -> None:
+    User.objects.create(username="alice")
+    User.objects.create(username="alice_1")
+
+    collision_settings = _settings(
+        USER_MODEL_LOOKUP_FIELD="email",
+        USER_MODEL_FIELD_MAP={"preferred_username": "username"},
+    )
+    with override_settings(KEYCLOAK_JWT=collision_settings):
+        user = resolve_user(CLAIMS)
+
+    assert user.username == "alice_2"
+
+
 def test_resolve_user_stale_cache_is_not_invalidated_when_disabled_at_startup() -> None:
     """USER_MODEL_ENABLED is False at process startup under tests/settings.py,
     so KeycloakJWTConfig.ready() never connects the invalidation signals --

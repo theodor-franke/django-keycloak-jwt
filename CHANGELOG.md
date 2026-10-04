@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-10-04
+
+### Fixed
+
+- `resolve_user` auto-provisioning (`USER_MODEL_ENABLED` + `USER_MODEL_AUTO_CREATE`)
+  no longer crashes the login when the claim mapped onto the username field (e.g.
+  `preferred_username`) collides with an existing row under a different
+  `USER_MODEL_LOOKUP_FIELD` value — a new user with a colliding username is now
+  saved under `<username>_1`, `<username>_2`, etc. instead of raising an
+  unhandled `IntegrityError`.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.db import IntegrityError, transaction
 from django.utils.module_loading import import_string
 
 from .conf import KeycloakJWTSettings, get_settings
@@ -31,6 +32,13 @@ if TYPE_CHECKING:
     from django.contrib.auth.base_user import AbstractBaseUser
 
 CACHE_KEY_PREFIX = "django_keycloak_jwt:user_model"
+
+#: Upper bound on ``_1``, ``_2``, ... suffix attempts when the username a new
+#: user is provisioned with collides with an existing row. Guards against an
+#: infinite loop if the IntegrityError turns out to be unrelated (e.g. some
+#: other unique column clashing), in which case the original error is
+#: re-raised once the budget is exhausted.
+_MAX_USERNAME_SUFFIX_ATTEMPTS = 1000
 
 
 def resolve_user(claims: dict[str, Any]) -> AbstractBaseUser:
@@ -109,7 +117,7 @@ def _fetch_or_create(
         user = model(**{lookup_field: lookup_value})
         _apply_field_map(user, claims, settings)
         _sync_role_fields(user, claims, settings)
-        user.save()
+        _save_new_user(user, model)
         return user
 
     changed = _apply_field_map(user, claims, settings)
@@ -117,6 +125,36 @@ def _fetch_or_create(
     if changed:
         user.save()
     return user
+
+
+def _save_new_user(user: AbstractBaseUser, model: type[AbstractBaseUser]) -> None:
+    """Save a newly-provisioned user, disambiguating a colliding username.
+
+    ``USER_MODEL_LOOKUP_FIELD`` (usually a ``sub``-backed column) is already
+    confirmed absent by the caller, but ``USER_MODEL_FIELD_MAP`` commonly
+    copies the claims' ``preferred_username`` onto the model's username
+    field independently of that lookup. Two different Keycloak subjects can
+    end up with the same ``preferred_username`` (renames, realm merges,
+    federated identities, ...), which trips the username column's unique
+    constraint and would otherwise fail the login outright. Retry with an
+    incrementing ``_1``, ``_2``, ... suffix until the save succeeds.
+    """
+    username_field = model.USERNAME_FIELD
+    base_username = getattr(user, username_field, None)
+
+    if base_username is None:
+        user.save()
+        return
+
+    for attempt in range(1, _MAX_USERNAME_SUFFIX_ATTEMPTS + 1):
+        try:
+            with transaction.atomic():
+                user.save()
+            return
+        except IntegrityError:
+            setattr(user, username_field, f"{base_username}_{attempt}")
+
+    user.save()
 
 
 def _apply_field_map(
