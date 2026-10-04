@@ -127,9 +127,7 @@ def _fetch_or_create(
     return user
 
 
-def _save_user_deduping_username(
-    user: AbstractBaseUser, model: type[AbstractBaseUser]
-) -> None:
+def _save_user_deduping_username(user: AbstractBaseUser, model: type[AbstractBaseUser]) -> None:
     """Save *user* (new or existing), disambiguating a colliding username.
 
     ``USER_MODEL_LOOKUP_FIELD`` (usually a ``sub``-backed column) is
