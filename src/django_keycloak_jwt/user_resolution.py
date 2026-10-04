@@ -139,10 +139,10 @@ def _save_new_user(user: AbstractBaseUser, model: type[AbstractBaseUser]) -> Non
     constraint and would otherwise fail the login outright. Retry with an
     incrementing ``_1``, ``_2``, ... suffix until the save succeeds.
     """
-    username_field = model.USERNAME_FIELD
-    base_username = getattr(user, username_field, None)
+    username_field = getattr(model, "USERNAME_FIELD", None)
+    base_username = getattr(user, username_field, None) if username_field else None
 
-    if base_username is None:
+    if username_field is None or base_username is None:
         user.save()
         return
 

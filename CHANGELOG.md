@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-10-04
+
+### Fixed
+
+- Typed `_save_new_user`'s `model` parameter so mypy no longer flags
+  `USERNAME_FIELD` access — it's only declared on concrete `AUTH_USER_MODEL`
+  subclasses, not `AbstractBaseUser` itself, so it's now read via `getattr`.
+
 ## [0.2.1] - 2026-10-04
 
 ### Fixed
