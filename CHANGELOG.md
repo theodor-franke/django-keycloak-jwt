@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-10-04
+
+### Fixed
+
+- The username-collision dedupe from 0.2.1 only covered newly-provisioned
+  users; re-syncing an *existing* row (`USER_MODEL_FIELD_MAP` re-applied on
+  every `resolve_user` call) could still crash the login with an unhandled
+  `IntegrityError` if the claim now collided with a different row's
+  username. `_save_new_user` is renamed to `_save_user_deduping_username`
+  and used on both the create and update paths.
+
 ## [0.2.2] - 2026-10-04
 
 ### Fixed

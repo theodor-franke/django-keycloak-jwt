@@ -117,23 +117,26 @@ def _fetch_or_create(
         user = model(**{lookup_field: lookup_value})
         _apply_field_map(user, claims, settings)
         _sync_role_fields(user, claims, settings)
-        _save_new_user(user, model)
+        _save_user_deduping_username(user, model)
         return user
 
     changed = _apply_field_map(user, claims, settings)
     changed = _sync_role_fields(user, claims, settings) or changed
     if changed:
-        user.save()
+        _save_user_deduping_username(user, model)
     return user
 
 
-def _save_new_user(user: AbstractBaseUser, model: type[AbstractBaseUser]) -> None:
-    """Save a newly-provisioned user, disambiguating a colliding username.
+def _save_user_deduping_username(
+    user: AbstractBaseUser, model: type[AbstractBaseUser]
+) -> None:
+    """Save *user* (new or existing), disambiguating a colliding username.
 
-    ``USER_MODEL_LOOKUP_FIELD`` (usually a ``sub``-backed column) is already
-    confirmed absent by the caller, but ``USER_MODEL_FIELD_MAP`` commonly
+    ``USER_MODEL_LOOKUP_FIELD`` (usually a ``sub``-backed column) is
+    confirmed distinct by the caller, but ``USER_MODEL_FIELD_MAP`` commonly
     copies the claims' ``preferred_username`` onto the model's username
-    field independently of that lookup. Two different Keycloak subjects can
+    field independently of that lookup -- on both initial creation and
+    later re-sync of an existing row. Two different Keycloak subjects can
     end up with the same ``preferred_username`` (renames, realm merges,
     federated identities, ...), which trips the username column's unique
     constraint and would otherwise fail the login outright. Retry with an

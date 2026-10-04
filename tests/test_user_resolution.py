@@ -154,6 +154,29 @@ def test_resolve_user_dedupes_colliding_username_multiple_times() -> None:
     assert user.username == "alice_2"
 
 
+def test_resolve_user_dedupes_colliding_username_on_update() -> None:
+    """The collision can just as easily surface on an *existing* row: the
+    lookup field already matched (e.g. ``sub``), but the field map's
+    username target now collides with a different row because some other
+    Keycloak subject grabbed that ``preferred_username`` in the meantime.
+    Re-syncing must not crash the login either.
+    """
+    # Looked up by email == claims["sub"] ("alice-sub"), independent of the
+    # username the field map is about to write.
+    User.objects.create(username="someone", email="alice-sub")
+    User.objects.create(username="alice", email="someone-else@example.test")
+
+    collision_settings = _settings(
+        USER_MODEL_LOOKUP_FIELD="email",
+        USER_MODEL_FIELD_MAP={"preferred_username": "username"},
+    )
+    with override_settings(KEYCLOAK_JWT=collision_settings):
+        user = resolve_user(CLAIMS)
+
+    assert user.username == "alice_1"
+    assert User.objects.count() == 2
+
+
 def test_resolve_user_stale_cache_is_not_invalidated_when_disabled_at_startup() -> None:
     """USER_MODEL_ENABLED is False at process startup under tests/settings.py,
     so KeycloakJWTConfig.ready() never connects the invalidation signals --
