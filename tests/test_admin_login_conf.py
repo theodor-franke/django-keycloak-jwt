@@ -34,6 +34,13 @@ def test_defaults() -> None:
     assert settings.HTTP_TIMEOUT == 5
     assert settings.LOGIN_REDIRECT_URL == "/admin/"
     assert settings.REFRESH_LEEWAY == 30
+    assert settings.COOKIE_MODE is False
+    assert settings.ACCESS_COOKIE_NAME == "kc_admin_access_token"
+    assert settings.ACCESS_COOKIE_PATH == "/"
+    assert settings.ACCESS_COOKIE_SECURE is True
+    assert settings.ACCESS_COOKIE_SAMESITE == "Lax"
+    assert settings.STATE_COOKIE_NAME == "kc_admin_login_state"
+    assert settings.STATE_COOKIE_MAX_AGE == 300
 
 
 def test_override_settings_invalidates_cache() -> None:

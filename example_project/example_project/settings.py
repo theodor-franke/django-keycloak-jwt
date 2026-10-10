@@ -41,6 +41,11 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django_keycloak_jwt.admin_login.middleware.KeycloakAdminSessionMiddleware",
+    # Self-gating (no-op unless KEYCLOAK_JWT_ADMIN['COOKIE_MODE'] is True), so
+    # it's safe to carry here even though the example project defaults to
+    # session mode -- e2e tests flip COOKIE_MODE on per-test via
+    # override_settings to exercise it against this same live server.
+    "django_keycloak_jwt.admin_login.cookie_middleware.KeycloakAdminCookieMiddleware",
 ]
 
 AUTH_USER_MODEL = "accounts.User"

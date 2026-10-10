@@ -109,7 +109,7 @@ KEYCLOAK_JWT = {
 | `USER_MODEL_FIELD_MAP` | `{"email": "email", "given_name": "first_name", "family_name": "last_name", "preferred_username": "username"}` | Claim → model field, synced on every cache-miss create/update. |
 | `USER_MODEL_AUTO_CREATE` | `True` | Create the row on first sight of a claim value if `False` and nothing matches, an `AuthenticationFailed(code="user_not_provisioned")`/`401` is raised instead. |
 | `USER_MODEL_CACHE_TTL` | `300` | Seconds the resolved row is cached for. |
-| `USER_MODEL_ROLE_FIELD_MAP` | `{}` | Client role (on `ROLE_CLIENT`) → boolean model field, e.g. `{"admin": "is_superuser"}`. Re-evaluated and saved on every cache-miss resolve — a role revoked in Keycloak demotes the local user on next sync, not just grants additively. |
+| `USER_MODEL_ROLE_FIELD_MAP` | `{}` | Client role (on `ROLE_CLIENT`) → boolean model field, e.g. `{"admin": "is_superuser"}`. Re-evaluated against every resolve's claims, cache hit or miss — a role revoked in Keycloak demotes the local user on the very next request, not just grants additively, and without waiting out `USER_MODEL_CACHE_TTL`. |
 
 Run `python manage.py check` to catch misconfiguration: missing `ISSUER`/`AUDIENCE`,
 a non-HTTPS issuer while `DEBUG=False`, symmetric or `none` algorithms, unknown keys
@@ -321,6 +321,81 @@ per Keycloak's short-lived-token guidance); `KeycloakAdminSessionMiddleware` sil
 renews it in the background using the stored `refresh_token` as long as Keycloak
 keeps honoring it, and logs the session out the moment a refresh attempt fails —
 there's no separate, longer-lived Django session lifetime to reason about.
+
+#### Cookie mode (optional)
+
+The session-mode flow above still uses a Django session to carry identity — the one
+place left in this library that isn't stateless. Set `KEYCLOAK_JWT_ADMIN['COOKIE_MODE']`
+to `True` to close that gap: admin authenticates from the **same Keycloak access token
+the frontend already uses**, stored directly in a cookie and re-validated from scratch
+on every request through the exact same stateless core the DRF path uses
+(`validation.validate_token` + `user_resolution.resolve_user`) — no session, no
+server-side identity storage, no second Keycloak client. Reach for this over the
+default session mode if you want a fully stateless admin surface, or you'd rather not
+register a second, dedicated Keycloak client just for admin.
+
+**1. Keycloak checklist difference: no second client.** Add the admin callback URL
+(`https://your-app.example.com/admin-login/callback/`) to the **frontend** client's
+existing Valid Redirect URIs — the same public, PKCE client the SPA already uses.
+Nothing else changes on the Keycloak side; the audience mapper the frontend client
+already needs for API calls is exactly what makes its access token acceptable here too.
+
+**2. Settings:**
+
+```python
+KEYCLOAK_JWT_ADMIN = {
+    "CLIENT_ID": "frontend",  # the SPA's own client, not a dedicated admin client
+    "COOKIE_MODE": True,
+}
+```
+
+| Key | Default | Notes |
+|---|---|---|
+| `COOKIE_MODE` | `False` | Opt-in. When `True`, `login`/`callback`/`logout` take the cookie-based branch instead of the session-based one described above. |
+| `ACCESS_COOKIE_NAME` | `"kc_admin_access_token"` | Holds the raw access token. `HttpOnly`. |
+| `ACCESS_COOKIE_PATH` | `"/"` | Deliberately simple default; scope it to your admin mount point (e.g. `"/admin"`) to shrink blast radius — this library can't infer that mount point reliably. |
+| `ACCESS_COOKIE_SECURE` | `True` | Same spirit as Django's own `SESSION_COOKIE_SECURE`; read as a plain setting, no env-var parsing invented here. |
+| `ACCESS_COOKIE_SAMESITE` | `"Lax"` | `Strict` would break the redirect back from Keycloak — that hop is cross-site even though it's this same app redirecting out and back. |
+| `STATE_COOKIE_NAME` | `"kc_admin_login_state"` | Short-lived, signed cookie carrying the login handshake (state + PKCE verifier + post-login `next`) — replaces the three `request.session[...]` keys session mode uses. |
+| `STATE_COOKIE_MAX_AGE` | `300` | Seconds. Generous enough for a slow IdP redirect, short enough that a stale one is useless. |
+
+**3. Add the middleware** (self-gating -- a no-op whenever `COOKIE_MODE` is `False` or
+the request carries no access-token cookie, so it's safe to add globally), **after**
+`AuthenticationMiddleware`:
+
+```python
+MIDDLEWARE = [
+    ...,
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_keycloak_jwt.admin_login.cookie_middleware.KeycloakAdminCookieMiddleware",
+]
+```
+
+`urls.py` and the `KeycloakAdminSite` swap are unchanged from session mode above.
+
+**No background refresh.** Unlike session mode's `KeycloakAdminSessionMiddleware`,
+cookie mode does not keep a refresh token or silently renew near expiry. When the
+access-token cookie expires, the next request is simply anonymous; Django admin's own
+`has_permission` check redirects back into `login`, which redirects to Keycloak again.
+Because the browser still holds Keycloak's own SSO session cookie, this round-trip is
+expected to be invisible (no login form shown) as long as that SSO session is alive.
+
+**`django.contrib.sessions` can stay installed.** Cookie mode only guarantees that
+*authentication* never depends on a session — admin's message framework and other
+session-backed conveniences keep working if you leave `django.contrib.sessions`
+installed; this library doesn't require removing it.
+
+**Shared logout is intentional.** Since login goes through the frontend's own Keycloak
+client, ending the frontend's SSO session (its own logout) also prevents a silent
+re-auth redirect for admin next time its cookie expires — and admin's own logout (with
+`LOGOUT_END_SESSION`, the default) ends the frontend's SSO session too. One login,
+shared.
+
+**Cookie size is your responsibility to verify.** RS256 access tokens with realm +
+client roles embedded commonly run 1–3 KB; a realm with many fine-grained client roles
+could run larger, and browsers/reverse proxies cap total header size. Measure your own
+realm's actual token size (`len(access_token.encode())`) before enabling this in
+production if your roles/scopes are extensive.
 
 ### Django Channels (optional)
 

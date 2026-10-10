@@ -70,6 +70,36 @@ def test_non_https_authorization_endpoint_with_debug_false_is_warning() -> None:
     )
 
 
+def test_cookie_mode_insecure_cookie_with_debug_false_is_warning() -> None:
+    with override_settings(
+        DEBUG=False,
+        KEYCLOAK_JWT_ADMIN={
+            "CLIENT_ID": "django-admin",
+            "COOKIE_MODE": True,
+            "ACCESS_COOKIE_SECURE": False,
+        },
+        KEYCLOAK_JWT=VALID_CORE,
+    ):
+        messages = check_keycloak_jwt_admin_settings(app_configs=None)
+    assert any(
+        m.id == "django_keycloak_jwt.admin_login.W003" and isinstance(m, Warning) for m in messages
+    )
+
+
+def test_cookie_mode_with_secure_cookie_produces_no_warning() -> None:
+    with override_settings(
+        DEBUG=False,
+        KEYCLOAK_JWT_ADMIN={
+            "CLIENT_ID": "django-admin",
+            "COOKIE_MODE": True,
+            "ACCESS_COOKIE_SECURE": True,
+        },
+        KEYCLOAK_JWT=VALID_CORE,
+    ):
+        messages = check_keycloak_jwt_admin_settings(app_configs=None)
+    assert not any(m.id == "django_keycloak_jwt.admin_login.W003" for m in messages)
+
+
 def test_valid_settings_produce_no_messages() -> None:
     with override_settings(
         DEBUG=True, KEYCLOAK_JWT_ADMIN={"CLIENT_ID": "django-admin"}, KEYCLOAK_JWT=VALID_CORE

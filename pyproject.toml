@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-keycloak-jwt"
-version = "0.2.3"
+version = "0.3.0"
 description = "Stateless Keycloak JWT authentication for Django REST Framework"
 readme = "README.md"
 requires-python = ">=3.13"

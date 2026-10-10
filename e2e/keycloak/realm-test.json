@@ -44,7 +44,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:5173/*"],
+      "redirectUris": ["http://localhost:5173/*", "http://localhost:*"],
       "webOrigins": ["http://localhost:5173"],
       "fullScopeAllowed": true,
       "attributes": {

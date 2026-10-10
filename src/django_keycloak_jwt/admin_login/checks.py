@@ -89,4 +89,15 @@ def check_keycloak_jwt_admin_settings(
             )
         )
 
+    cookie_mode = raw.get("COOKIE_MODE", DEFAULTS["COOKIE_MODE"])
+    access_cookie_secure = raw.get("ACCESS_COOKIE_SECURE", DEFAULTS["ACCESS_COOKIE_SECURE"])
+    if cookie_mode and not access_cookie_secure and not settings.DEBUG:
+        messages.append(
+            Warning(
+                "KEYCLOAK_JWT_ADMIN['ACCESS_COOKIE_SECURE'] is False while DEBUG=False -- "
+                "the admin access-token cookie will be sent over plain HTTP.",
+                id="django_keycloak_jwt.admin_login.W003",
+            )
+        )
+
     return messages

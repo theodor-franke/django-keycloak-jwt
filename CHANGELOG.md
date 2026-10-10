@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-10-10
+
+### Added
+
+- Optional `COOKIE_MODE` for `admin_login`: authenticates Django admin from the same
+  Keycloak access token the frontend already uses, stored in a cookie and re-validated
+  on every request via the existing stateless core — no Django session, no second
+  Keycloak client, consistent with the rest of the library's stateless design. Existing
+  session mode is unchanged and remains the default.
+
+### Changed
+
+- `USER_MODEL_ROLE_FIELD_MAP` fields are now re-diffed against every `resolve_user`
+  call, not just cache misses — a role revoked or granted in Keycloak takes effect on
+  the very next request instead of waiting out `USER_MODEL_CACHE_TTL`. Only costs a DB
+  write when a mapped field actually flips; a cache hit with no role change stays
+  cache-speed.
+
 ## [0.2.3] - 2026-10-04
 
 ### Fixed

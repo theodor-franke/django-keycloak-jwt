@@ -120,6 +120,54 @@ def test_resolve_user_syncs_role_field_map() -> None:
     assert User.objects.get(username="alice-sub").is_staff is False
 
 
+def test_resolve_user_syncs_role_field_map_on_cache_hit() -> None:
+    """A role change must take effect on the very next request, not wait
+    for the cache entry to expire -- no ``cache.clear()`` here, unlike
+    ``test_resolve_user_syncs_role_field_map`` above.
+    """
+    role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
+    with override_settings(KEYCLOAK_JWT=role_settings):
+        user = resolve_user(CLAIMS)
+        assert user.is_staff is True
+
+        no_role_claims = {**CLAIMS, "resource_access": {"api": {"roles": []}}}
+        user = resolve_user(no_role_claims)
+
+    assert user.is_staff is False
+    assert User.objects.get(username="alice-sub").is_staff is False
+
+
+def test_resolve_user_cache_hit_skips_db_when_role_unchanged() -> None:
+    role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
+    with override_settings(KEYCLOAK_JWT=role_settings):
+        resolve_user(CLAIMS)
+
+        with CaptureQueriesContext(connection) as ctx:
+            resolve_user(CLAIMS)
+
+    assert len(ctx) == 0
+
+
+def test_resolve_user_cache_hit_resync_refreshes_cache_entry() -> None:
+    """After a role flip is written back, the cache entry itself must be
+    refreshed -- otherwise every subsequent request within the TTL window
+    would keep re-diffing against the same stale cached copy and
+    re-issuing the same write instead of going quiet.
+    """
+    role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
+    with override_settings(KEYCLOAK_JWT=role_settings):
+        resolve_user(CLAIMS)
+
+        no_role_claims = {**CLAIMS, "resource_access": {"api": {"roles": []}}}
+        resolve_user(no_role_claims)
+
+        with CaptureQueriesContext(connection) as ctx:
+            user = resolve_user(no_role_claims)
+
+    assert len(ctx) == 0
+    assert user.is_staff is False
+
+
 def test_resolve_user_dedupes_colliding_username_on_create() -> None:
     """USER_MODEL_LOOKUP_FIELD (sub-backed) and the FIELD_MAP's username
     target are independent columns in real deployments (see

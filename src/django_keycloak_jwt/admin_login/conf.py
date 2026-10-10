@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -26,6 +26,13 @@ DEFAULTS: dict[str, Any] = {
     "HTTP_TIMEOUT": 5,
     "LOGIN_REDIRECT_URL": "/admin/",
     "REFRESH_LEEWAY": 30,
+    "COOKIE_MODE": False,
+    "ACCESS_COOKIE_NAME": "kc_admin_access_token",
+    "ACCESS_COOKIE_PATH": "/",
+    "ACCESS_COOKIE_SECURE": True,
+    "ACCESS_COOKIE_SAMESITE": "Lax",
+    "STATE_COOKIE_NAME": "kc_admin_login_state",
+    "STATE_COOKIE_MAX_AGE": 300,
 }
 
 #: Public client ID for the dedicated admin OIDC client (PKCE, no secret).
@@ -47,6 +54,13 @@ class KeycloakJWTAdminSettings:
     HTTP_TIMEOUT: int
     LOGIN_REDIRECT_URL: str
     REFRESH_LEEWAY: int
+    COOKIE_MODE: bool
+    ACCESS_COOKIE_NAME: str
+    ACCESS_COOKIE_PATH: str
+    ACCESS_COOKIE_SECURE: bool
+    ACCESS_COOKIE_SAMESITE: Literal["Lax", "Strict", "None"]
+    STATE_COOKIE_NAME: str
+    STATE_COOKIE_MAX_AGE: int
 
 
 class _Cache:
@@ -87,6 +101,13 @@ def _load_settings() -> KeycloakJWTAdminSettings:
         HTTP_TIMEOUT=merged["HTTP_TIMEOUT"],
         LOGIN_REDIRECT_URL=merged["LOGIN_REDIRECT_URL"],
         REFRESH_LEEWAY=merged["REFRESH_LEEWAY"],
+        COOKIE_MODE=merged["COOKIE_MODE"],
+        ACCESS_COOKIE_NAME=merged["ACCESS_COOKIE_NAME"],
+        ACCESS_COOKIE_PATH=merged["ACCESS_COOKIE_PATH"],
+        ACCESS_COOKIE_SECURE=merged["ACCESS_COOKIE_SECURE"],
+        ACCESS_COOKIE_SAMESITE=merged["ACCESS_COOKIE_SAMESITE"],
+        STATE_COOKIE_NAME=merged["STATE_COOKIE_NAME"],
+        STATE_COOKIE_MAX_AGE=merged["STATE_COOKIE_MAX_AGE"],
     )
 
 
