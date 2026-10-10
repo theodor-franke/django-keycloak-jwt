@@ -19,7 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   call, not just cache misses — a role revoked or granted in Keycloak takes effect on
   the very next request instead of waiting out `USER_MODEL_CACHE_TTL`. Only costs a DB
   write when a mapped field actually flips; a cache hit with no role change stays
-  cache-speed.
+  cache-speed. The diff is skipped entirely for claims that carry no
+  `resource_access` entry for `ROLE_CLIENT` at all (e.g. an OIDC *ID* token, which
+  Keycloak doesn't put client role mappings on by default) rather than treating that
+  absence as "no roles" and demoting an already-correct mapped field.
 
 ## [0.2.3] - 2026-10-04
 

@@ -137,6 +137,26 @@ def test_resolve_user_syncs_role_field_map_on_cache_hit() -> None:
     assert User.objects.get(username="alice-sub").is_staff is False
 
 
+def test_resolve_user_cache_hit_ignores_claims_without_resource_access() -> None:
+    """A claims payload that lacks ``resource_access`` entirely -- notably
+    an OIDC *ID* token, which Keycloak doesn't put client role mappings on
+    by default (only the *access* token gets those), and which is exactly
+    what ``admin_login`` session mode resolves users from -- can't speak to
+    roles at all. It must never be read as "no roles" and demote an
+    already-correct mapped field on an existing cache hit.
+    """
+    role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
+    with override_settings(KEYCLOAK_JWT=role_settings):
+        user = resolve_user(CLAIMS)
+        assert user.is_staff is True
+
+        id_token_like_claims = {k: v for k, v in CLAIMS.items() if k != "resource_access"}
+        user = resolve_user(id_token_like_claims)
+
+    assert user.is_staff is True
+    assert User.objects.get(username="alice-sub").is_staff is True
+
+
 def test_resolve_user_recovers_when_cached_row_was_deleted() -> None:
     """The cached instance can outlive the row it points at (deleted
     directly, or -- as in e2e -- a test DB truncated between runs while

@@ -14,7 +14,11 @@ call, cache hit or miss, they're re-diffed against *this request's* claims
 (not just at cache-miss time), so a role revoked/granted in Keycloak takes
 effect on the very next request rather than waiting out the TTL. This only
 costs a DB write when a mapped field actually flips -- a no-op diff (the
-common case) stays cache-speed.
+common case) stays cache-speed. The diff only ever runs against claims that
+actually carry a ``resource_access`` entry for ``ROLE_CLIENT`` -- a claims
+payload without one (e.g. an OIDC *ID* token, as ``admin_login`` session mode
+resolves users from) is a no-op rather than an implicit "no roles", so it can
+never demote an already-correct mapped field.
 
 A process-shared cache backend (e.g. Redis or Memcached) is required for the
 invalidation signal to be visible across worker processes — see the
@@ -23,6 +27,7 @@ invalidation signal to be visible across worker processes — see the
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
@@ -204,6 +209,19 @@ def _sync_role_fields(
 ) -> bool:
     role_map = settings.USER_MODEL_ROLE_FIELD_MAP
     if not role_map:
+        return False
+
+    resource_access = claims.get("resource_access")
+    if not isinstance(resource_access, Mapping) or settings.ROLE_CLIENT not in resource_access:
+        # This claims payload doesn't carry role data for ROLE_CLIENT at all
+        # -- most notably an OIDC *ID* token, which Keycloak only puts client
+        # role mappings on the *access* token by default (admin_login's
+        # session mode resolves users from the ID token). Treat "can't say"
+        # as a no-op rather than "no roles", so a token that structurally
+        # can't speak to roles can never demote an already-correct mapped
+        # field. A payload that *does* carry the client's entry -- even with
+        # an empty roles list -- is an actual assertion and still free to
+        # revoke below.
         return False
 
     roles = KeycloakUser(claims).client_roles(settings.ROLE_CLIENT)
