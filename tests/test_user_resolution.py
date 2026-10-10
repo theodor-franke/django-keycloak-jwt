@@ -137,6 +137,25 @@ def test_resolve_user_syncs_role_field_map_on_cache_hit() -> None:
     assert User.objects.get(username="alice-sub").is_staff is False
 
 
+def test_resolve_user_recovers_when_cached_row_was_deleted() -> None:
+    """The cached instance can outlive the row it points at (deleted
+    directly, or -- as in e2e -- a test DB truncated between runs while
+    the process-local cache survives). A role change that triggers a
+    write must fall back to a fresh resolve instead of crashing on the
+    now-dangling pk.
+    """
+    role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
+    with override_settings(KEYCLOAK_JWT=role_settings):
+        resolve_user(CLAIMS)
+        User.objects.all().delete()
+
+        no_role_claims = {**CLAIMS, "resource_access": {"api": {"roles": []}}}
+        user = resolve_user(no_role_claims)
+
+    assert user.is_staff is False
+    assert User.objects.get(username="alice-sub").is_staff is False
+
+
 def test_resolve_user_cache_hit_skips_db_when_role_unchanged() -> None:
     role_settings = _settings(USER_MODEL_ROLE_FIELD_MAP={"editor": "is_staff"})
     with override_settings(KEYCLOAK_JWT=role_settings):

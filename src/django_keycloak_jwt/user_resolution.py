@@ -75,13 +75,25 @@ def resolve_user(claims: dict[str, Any]) -> AbstractBaseUser:
         user = _fetch_or_create(claims, lookup_value, settings)
         cache.set(key, user, settings.USER_MODEL_CACHE_TTL)
     elif _sync_role_fields(user, claims, settings):
-        # A mapped role flipped since this row was cached. Re-save just the
-        # role columns and refresh the cache entry so the corrected value
-        # is what the *next* cache hit compares against -- otherwise every
-        # request up to TTL expiry would keep re-diffing against the same
-        # stale copy and re-issuing this same write.
-        user.save(update_fields=list(settings.USER_MODEL_ROLE_FIELD_MAP.values()))
-        cache.set(key, user, settings.USER_MODEL_CACHE_TTL)
+        # A mapped role flipped since this row was cached. Write just the
+        # role columns via a targeted UPDATE (not user.save(update_fields=...),
+        # which raises if the row no longer matches -- a plain queryset
+        # .update() instead reports back via its row count) and refresh the
+        # cache entry so the corrected value is what the *next* cache hit
+        # compares against -- otherwise every request up to TTL expiry would
+        # keep re-diffing against the same stale copy and re-issuing this
+        # same write.
+        role_fields = settings.USER_MODEL_ROLE_FIELD_MAP.values()
+        desired_values = {field_name: getattr(user, field_name) for field_name in role_fields}
+        rows_updated = get_user_model().objects.filter(pk=user.pk).update(**desired_values)
+        if rows_updated:
+            cache.set(key, user, settings.USER_MODEL_CACHE_TTL)
+        else:
+            # The cached row was deleted (or otherwise vanished) out from
+            # under the TTL window -- fall back to a full re-resolve rather
+            # than crash on a stale pk.
+            user = _fetch_or_create(claims, lookup_value, settings)
+            cache.set(key, user, settings.USER_MODEL_CACHE_TTL)
 
     principal_class = import_string(settings.USER_CLASS)
     setattr(user, "keycloak", principal_class(claims))  # noqa: B010
